@@ -1,5 +1,5 @@
-#___KGF CYBER TEAM
-#=== BOT CODING 
+#___KGF_CYBER TEAM 
+#___ GF BOT-*
 import os
 
 os.system("pip install python-telegram-bot")
@@ -8,7 +8,6 @@ import logging
 import urllib.parse
 import urllib.request
 import json
-import re
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
@@ -52,7 +51,7 @@ def get_main_keyboard(user_id: int):
     if lang == 'bn':
         keyboard = [
             [KeyboardButton("💬 চ্যাট করুন")],
-            [KeyboardButton("🔮 রেফারেল "), KeyboardButton("📊 বট পরিসংখ্যান")],
+            [KeyboardButton("🔮 রেফারেল"), KeyboardButton("📊 বট পরিসংখ্যান")],
             [KeyboardButton("💬 সাপোর্ট সাহায্য"), KeyboardButton("📢 আমাদের চ্যানেল")],
             [KeyboardButton("🌐 ভাষা পরিবর্তন করুন")]
         ]
@@ -60,7 +59,7 @@ def get_main_keyboard(user_id: int):
             keyboard.append([KeyboardButton("⚙️ এডমিন প্যানেল")])
     else:
         keyboard = [
-            [KeyboardButton("💬 Chat AI ")],
+            [KeyboardButton("💬 Chat AI")],
             [KeyboardButton("🔮 Referral Dashboard"), KeyboardButton("📊 Bot Statistics")],
             [KeyboardButton("💬 Support & Help"), KeyboardButton("📢 Official Channel")],
             [KeyboardButton("🌐 Change Language")]
@@ -203,7 +202,7 @@ async def handle_verification(update: Update, context: ContextTypes.DEFAULT_TYPE
                     parse_mode="HTML",
                     reply_markup=get_main_keyboard(user_id)
                 )
-        except Exception as e:
+        except Exception:
             await query.answer("Error checking status.", show_alert=True)
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,20 +234,21 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     lang = user_languages.get(user_id, 'bn')
 
-    if user_text in ["💬 Chat AI / চ্যাট করুন", "💬 Chat AI / Ask Question"]:
+    # Chat AI বাটনে ক্লিক করলে ব্যবহারকারীকে সরাসরি মেসেজ লিখতে বলবে
+    if user_text in ["💬 চ্যাট করুন", "💬 Chat AI"]:
         chat_prompt = (
             "🤖 <b>[ AI CHAT MODE ]</b>\n"
             f"{DECO_DIVIDER}"
-            "আপনার যেকোনো প্রশ্ন বা মেসেজ সরাসরি চ্যাটে লিখে পাঠান, AI উত্তর প্রদান করবে।"
+            "আপনার যেকোনো প্রশ্ন বা মেসেজ এখনই সরাসরি নিচে লিখে পাঠান! শিলা আপনাকে উত্তর দেবে।"
             if lang == 'bn' else
             "🤖 <b>[ AI CHAT MODE ]</b>\n"
             f"{DECO_DIVIDER}"
-            "Type and send any message or question directly in the chat to get an AI response."
+            "Type and send any message or question directly in the chat below to get a response."
         )
         await update.message.reply_text(chat_prompt, parse_mode="HTML")
         return
 
-    elif user_text in ["🔮 রেফারেল dashboard", "🔮 Referral Dashboard"]:
+    elif user_text in ["🔮 রেফারেল", "🔮 Referral Dashboard"]:
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         count = referrals_db.get(user_id, 0)
@@ -339,6 +339,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text(admin_msg, parse_mode="HTML")
         return
 
+    # সাধারণ চ্যাট মেসেজ প্রসেসিং ও API কল
     encoded_text = urllib.parse.quote(user_text)
     full_url = f"{API_BASE_URL}{encoded_text}"
 
@@ -347,19 +348,17 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     try:
         req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with urllib.request.urlopen(req, timeout=20) as response:
             raw_data = response.read().decode('utf-8')
-            json_data = json.loads(raw_data)
+            
+            try:
+                json_data = json.loads(raw_data)
+            except json.JSONDecodeError:
+                await status_msg.edit_text("❌ <b>[ API Error: Invalid JSON response ]</b>", parse_mode="HTML")
+                return
             
             if "reply" in json_data and json_data["reply"]:
                 full_reply = json_data["reply"]
-                
-                paragraphs = [p.strip() for p in re.split(r'\n\s*\n', full_reply) if p.strip()]
-                
-                if paragraphs:
-                    best_reply = max(paragraphs, key=len)
-                else:
-                    best_reply = full_reply
 
                 header_label = "[ উত্তর / RESPONSE ]" if lang == 'bn' else "[ API RESPONSE RESULT ]"
                 footer_label = "⚡ সাফল্যজনকভাবে সম্পন্ন হয়েছে।" if lang == 'bn' else "⚡ Processed successfully."
@@ -367,11 +366,11 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
                 styled_output = (
                     f"✨ <b>{header_label}</b> ✨\n"
                     f"{DECO_DIVIDER}"
-                    f"{best_reply}\n"
+                    f"{full_reply}\n"
                     f"{DECO_DIVIDER}"
                     f"<i>{footer_label}</i>"
                 )
-                await status_msg.edit_text(styled_output, parse_mode="HTML")
+                await status_msg.edit_text(styled_output, parse_mode="HTML", disable_web_page_preview=True)
             else:
                 err_text = "❌ <b>[ কোনো উত্তর পাওয়া যায়নি ]</b>" if lang == 'bn' else "❌ <b>[ NO RESPONSE RETURNED ]</b>"
                 await status_msg.edit_text(err_text, parse_mode="HTML")
