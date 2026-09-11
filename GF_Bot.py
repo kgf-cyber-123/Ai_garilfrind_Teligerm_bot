@@ -1,5 +1,5 @@
-#____ KGF CYBER TEAM 
-#___ BOT CODING :- 
+#___KGF CYBER TEAM
+#=== BOT CODING 
 import os
 
 os.system("pip install python-telegram-bot")
@@ -9,11 +9,12 @@ import urllib.parse
 import urllib.request
 import json
 import re
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters
 )
@@ -41,8 +42,7 @@ DECO_DIVIDER = "\n────────────────────�
 
 def get_language_keyboard():
     keyboard = [
-        [KeyboardButton("🇧🇩 বাংলা (Bengali)")],
-        [KeyboardButton("🇬🇧 English")]
+        [KeyboardButton("🇧🇩 বাংলা (Bengali)"), KeyboardButton("🇬🇧 English")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -51,26 +51,37 @@ def get_main_keyboard(user_id: int):
     
     if lang == 'bn':
         keyboard = [
-            [KeyboardButton("🔮 রেফারেল dashboard")],
-            [KeyboardButton("📊 বট পরিসংখ্যান")],
-            [KeyboardButton("💬 সাপোর্ট সাহায্য")],
-            [KeyboardButton("📢 আমাদের চ্যানেল")],
+            [KeyboardButton("💬 চ্যাট করুন")],
+            [KeyboardButton("🔮 রেফারেল "), KeyboardButton("📊 বট পরিসংখ্যান")],
+            [KeyboardButton("💬 সাপোর্ট সাহায্য"), KeyboardButton("📢 আমাদের চ্যানেল")],
             [KeyboardButton("🌐 ভাষা পরিবর্তন করুন")]
         ]
         if user_id == ADMIN_ID:
             keyboard.append([KeyboardButton("⚙️ এডমিন প্যানেল")])
     else:
         keyboard = [
-            [KeyboardButton("🔮 Referral Dashboard")],
-            [KeyboardButton("📊 Bot Statistics")],
-            [KeyboardButton("💬 Support & Help")],
-            [KeyboardButton("📢 Official Channel")],
+            [KeyboardButton("💬 Chat AI ")],
+            [KeyboardButton("🔮 Referral Dashboard"), KeyboardButton("📊 Bot Statistics")],
+            [KeyboardButton("💬 Support & Help"), KeyboardButton("📢 Official Channel")],
             [KeyboardButton("🌐 Change Language")]
         ]
         if user_id == ADMIN_ID:
             keyboard.append([KeyboardButton("⚙️ Admin Panel")])
         
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_join_inline_keyboard(lang: str):
+    if lang == 'bn':
+        keyboard = [
+            [InlineKeyboardButton("📢 চ্যানেল জয়েন করুন", url=REQUIRED_CHANNEL_LINK)],
+            [InlineKeyboardButton("✅ Verify", callback_data="verify_join")]
+        ]
+    else:
+        keyboard = [
+            [InlineKeyboardButton("📢 Join Channel", url=REQUIRED_CHANNEL_LINK)],
+            [InlineKeyboardButton("✅ Verify", callback_data="verify_join")]
+        ]
+    return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -103,31 +114,21 @@ async def send_main_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
         if member.status in ['left', 'kicked']:
             if lang == 'bn':
-                join_keyboard = ReplyKeyboardMarkup([
-                    [KeyboardButton("📢 চ্যানেল দেখুন")],
-                    [KeyboardButton("✅ ভেরিফাই জয়েন")]
-                ], resize_keyboard=True)
                 join_msg = (
                     f"{STYLISH_HEADER}"
                     "🚨 <b>[ এক্সেস সীমিত ]</b> 🚨\n\n"
-                    f"📌 <i>আমাদের অফিশিয়াল চ্যানেল লিংক: {REQUIRED_CHANNEL_LINK}</i>\n"
-                    "📌 <i>বটটির সকল ফিচার ব্যবহার করতে আমাদের চ্যানেলে জয়েন করুন এবং 'ভেরিফাই জয়েন' বাটনে চাপুন।</i>\n\n"
+                    "📌 <i>বটটির সকল ফিচার ব্যবহার করতে আমাদের চ্যানেলে জয়েন করুন এবং নিচের 'Verify ✅' বাটনে চাপুন।</i>\n\n"
                     "<code>[ স্ট্যাটাস: ভেরিফিকেশনের জন্য অপেক্ষায় ]</code>"
                 )
             else:
-                join_keyboard = ReplyKeyboardMarkup([
-                    [KeyboardButton("📢 View Channel")],
-                    [KeyboardButton("✅ Verify Join")]
-                ], resize_keyboard=True)
                 join_msg = (
                     f"{STYLISH_HEADER}"
                     "🚨 <b>[ ACCESS RESTRICTED ]</b> 🚨\n\n"
-                    f"📌 <i>Official Channel Link: {REQUIRED_CHANNEL_LINK}</i>\n"
-                    "📌 <i>Please subscribe to our channel first and click 'Verify Join' to unlock access.</i>\n\n"
+                    "📌 <i>Please subscribe to our channel first and click 'Verify ✅' below to unlock access.</i>\n\n"
                     "<code>[ STATUS: WAITING FOR VERIFICATION ]</code>"
                 )
             
-            await update.message.reply_text(join_msg, parse_mode="HTML", reply_markup=join_keyboard)
+            await update.message.reply_text(join_msg, parse_mode="HTML", reply_markup=get_join_inline_keyboard(lang))
             return
     except Exception:
         pass
@@ -156,6 +157,54 @@ async def send_main_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         )
 
     await update.message.reply_text(welcome_text, parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
+
+async def handle_verification(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    lang = user_languages.get(user_id, 'bn')
+
+    if query.data == "verify_join":
+        try:
+            member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
+            if member.status in ['left', 'kicked']:
+                alert_text = (
+                    "❌ আপনি এখনো চ্যানেলে জয়েন করেননি! অনুগ্রহ করে জয়েন করে আবার চেষ্টা করুন।"
+                    if lang == 'bn' else
+                    "❌ You haven't joined the channel yet! Please join and try again."
+                )
+                await query.answer(alert_text, show_alert=True)
+            else:
+                await query.answer("✅ Verification Success!")
+                await query.message.delete()
+                
+                if lang == 'bn':
+                    welcome_text = (
+                        f"{STYLISH_HEADER}"
+                        "🎉 <b>ভেরিফিকেশন সফল হয়েছে!</b>\n\n"
+                        f"👤 <b>ব্যবহারকারী:</b> <code>{query.from_user.first_name}</code>\n"
+                        f"🆔 <b>ইউজার আইডি:</b> <code>{user_id}</code>\n"
+                        f"⚡ <b>সিস্টেম স্ট্যাটাস:</b> <code>অনলাইন ও প্রস্তুত</code>\n"
+                        f"{DECO_DIVIDER}"
+                        "যেকোনো প্রশ্ন বা টেক্সট লিখে পাঠান। বট সেটি প্রসেস করে উত্তর প্রদান করবে।"
+                    )
+                else:
+                    welcome_text = (
+                        f"{STYLISH_HEADER}"
+                        "🎉 <b>Verification Successful!</b>\n\n"
+                        f"👤 <b>User:</b> <code>{query.from_user.first_name}</code>\n"
+                        f"🆔 <b>User ID:</b> <code>{user_id}</code>\n"
+                        f"⚡ <b>System Status:</b> <code>ONLINE & READY</code>\n"
+                        f"{DECO_DIVIDER}"
+                        "Send any prompt or message. The bot will parse the optimal response."
+                    )
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=welcome_text,
+                    parse_mode="HTML",
+                    reply_markup=get_main_keyboard(user_id)
+                )
+        except Exception as e:
+            await query.answer("Error checking status.", show_alert=True)
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
@@ -186,7 +235,20 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     lang = user_languages.get(user_id, 'bn')
 
-    if user_text in ["🔮 রেফারেল dashboard", "🔮 Referral Dashboard"]:
+    if user_text in ["💬 Chat AI / চ্যাট করুন", "💬 Chat AI / Ask Question"]:
+        chat_prompt = (
+            "🤖 <b>[ AI CHAT MODE ]</b>\n"
+            f"{DECO_DIVIDER}"
+            "আপনার যেকোনো প্রশ্ন বা মেসেজ সরাসরি চ্যাটে লিখে পাঠান, AI উত্তর প্রদান করবে।"
+            if lang == 'bn' else
+            "🤖 <b>[ AI CHAT MODE ]</b>\n"
+            f"{DECO_DIVIDER}"
+            "Type and send any message or question directly in the chat to get an AI response."
+        )
+        await update.message.reply_text(chat_prompt, parse_mode="HTML")
+        return
+
+    elif user_text in ["🔮 রেফারেল dashboard", "🔮 Referral Dashboard"]:
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         count = referrals_db.get(user_id, 0)
@@ -258,7 +320,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(support_text, parse_mode="HTML")
         return
 
-    elif user_text in ["📢 আমাদের চ্যানেল", "📢 Official Channel", "📢 চ্যানেল দেখুন", "📢 View Channel"]:
+    elif user_text in ["📢 আমাদের চ্যানেল", "📢 Official Channel"]:
         msg = f"📢 <b>Our Official Channel Link / আমাদের চ্যানেল লিংক:</b>\n{REQUIRED_CHANNEL_LINK}"
         await update.message.reply_text(msg, parse_mode="HTML")
         return
@@ -275,26 +337,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "⚠️ <i>Supports HTML formatting tags.</i>"
             )
             await update.message.reply_text(admin_msg, parse_mode="HTML")
-        return
-
-    elif user_text in ["✅ ভেরিফাই জয়েন", "✅ Verify Join"]:
-        try:
-            member = await context.bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
-            if member.status in ['left', 'kicked']:
-                fail_msg = (
-                    "❌ <b>[ VERIFICATION FAILED ]</b>\n\n"
-                    "⚠️ You haven't joined the channel yet! / আপনি এখনো চ্যানেলে জয়েন করেননি!\n"
-                    f"🔗 Channel Link: {REQUIRED_CHANNEL_LINK}"
-                )
-                await update.message.reply_text(fail_msg, parse_mode="HTML")
-            else:
-                success_msg = (
-                    "🎉 <b>[ VERIFICATION SUCCESSFUL / ভেরিফিকেশন সফল ]</b>\n\n"
-                    "🔓 Access granted! / আপনার এক্সেস সক্রিয় করা হয়েছে।"
-                )
-                await update.message.reply_text(success_msg, parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
-        except Exception:
-            await update.message.reply_text("✅ <b>Welcome!</b>", parse_mode="HTML", reply_markup=get_main_keyboard(user_id))
         return
 
     encoded_text = urllib.parse.quote(user_text)
@@ -389,6 +431,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
+    app.add_handler(CallbackQueryHandler(handle_verification, pattern="^verify_join$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
 
     print("\n[+] Bot Engine Online and Listening...")
